@@ -1,0 +1,81 @@
+services:
+  db:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-store_db}
+      POSTGRES_USER: ${POSTGRES_USER:-store_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-store_secure_password_2024}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  flyway:
+    image: flyway/flyway:11.12
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/flyway/sql
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-store_db}
+      FLYWAY_USER: ${POSTGRES_USER:-store_user}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-store_secure_password_2024}
+    command: >
+      -url=jdbc:postgresql://db:5432/${POSTGRES_DB:-store_db}
+      -user=${POSTGRES_USER:-store_user}
+      -password=${POSTGRES_PASSWORD:-store_secure_password_2024}
+      migrate
+
+  product-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.product
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-store_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-store_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-store_secure_password_2024}
+      SERVER_PORT: ${PRODUCT_SERVICE_PORT:-8081}
+      SUPPLIER_SERVICE_URL: http://supplier-service:8082
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./src:/app/src
+      - ~/.m2:/root/.m2
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  pgadmin:
+    image: dpage/pgadmin4:9.8.0
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@store.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin_secure_password}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "7777:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+volumes:
+  db_data:
+  pgadmin_data:
