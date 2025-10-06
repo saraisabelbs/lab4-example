@@ -2,9 +2,8 @@ package pt.ulusofona.cd.store.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import pt.ulusofona.cd.store.model.Product;
+import pt.ulusofona.cd.store.product.model.Product;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
